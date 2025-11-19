@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase, UserProfile } from '../lib/supabase';
-import { logout } from '../lib/auth';
+import { logout, getCurrentSession } from '../lib/auth';
 import { LogOut, Home, LayoutDashboard } from 'lucide-react';
 import CustomerView from './CustomerView';
 import AdminView from './AdminView';
@@ -14,12 +14,12 @@ export default function MainLayout() {
 
     const loadProfile = async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        if (isMounted && data.session?.user) {
+        const session = getCurrentSession();
+        if (isMounted && session?.id) {
           const { data: profile } = await supabase
             .from('user_profiles')
             .select('*')
-            .eq('id', data.session.user.id)
+            .eq('id', session.id)
             .maybeSingle();
           if (isMounted) {
             setUserProfile(profile);
@@ -38,15 +38,16 @@ export default function MainLayout() {
 
     loadProfile();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async () => {
+    const handleStorageChange = () => {
       if (isMounted) {
-        await loadProfile();
+        loadProfile();
       }
-    });
+    };
 
+    window.addEventListener('storage', handleStorageChange);
     return () => {
       isMounted = false;
-      subscription?.unsubscribe();
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { isAuthenticated } from '../lib/auth';
 import LoginView from './LoginView';
 
 interface AuthGuardProps {
@@ -8,38 +8,18 @@ interface AuthGuardProps {
 
 export default function AuthGuard({ children }: AuthGuardProps) {
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
 
   useEffect(() => {
-    let isMounted = true;
+    setAuthenticated(isAuthenticated());
+    setIsLoading(false);
 
-    const checkSession = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (isMounted) {
-          setIsAuthenticated(!!data.session);
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('Session check error:', error);
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
+    const handleStorageChange = () => {
+      setAuthenticated(isAuthenticated());
     };
 
-    checkSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      if (isMounted) {
-        setIsAuthenticated(!!session);
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription?.unsubscribe();
-    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   if (isLoading) {
@@ -55,8 +35,8 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  if (!isAuthenticated) {
-    return <LoginView />;
+  if (!authenticated) {
+    return <LoginView onLoginSuccess={() => setAuthenticated(true)} />;
   }
 
   return <>{children}</>;

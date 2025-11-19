@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { mockLogin } from '../lib/auth';
 import { LogIn } from 'lucide-react';
 
-export default function LoginView() {
+interface LoginViewProps {
+  onLoginSuccess?: () => void;
+}
+
+export default function LoginView({ onLoginSuccess }: LoginViewProps) {
   const [name, setName] = useState('');
   const [role, setRole] = useState<'customer' | 'staff' | 'admin'>('customer');
   const [isLoading, setIsLoading] = useState(false);
@@ -19,10 +23,9 @@ export default function LoginView() {
     setError('');
 
     try {
-      const result = await mockLogin(name, role);
-      if (result.error) {
-        setError(result.error.message || 'Login failed. Please try again.');
-        setIsLoading(false);
+      await mockLogin(name, role);
+      if (onLoginSuccess) {
+        onLoginSuccess();
       }
     } catch (err) {
       setError('Login failed. Please try again.');

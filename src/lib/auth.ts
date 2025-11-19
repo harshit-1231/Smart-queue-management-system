@@ -1,39 +1,51 @@
 import { supabase, UserRole } from './supabase';
 
+const STORAGE_KEY = 'appointments_user_session';
+
+interface MockSession {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  createdAt: string;
+}
+
 export const mockLogin = async (name: string, role: UserRole = 'customer') => {
   const email = `${name.toLowerCase().replace(/\s+/g, '.')}@appointments.local`;
 
   try {
-    const signInResult = await supabase.auth.signInWithPassword({
-      email,
-      password: 'demo123456',
-    });
+    let userId: string;
+    let existingProfile = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
 
-    if (signInResult.error) {
-      const signUpResult = await supabase.auth.signUp({
-        email,
-        password: 'demo123456',
-        options: {
-          data: {
-            full_name: name,
-            role,
-          },
-        },
-      });
-
-      if (!signUpResult.error && signUpResult.data.user) {
-        await supabase.from('user_profiles').upsert({
-          id: signUpResult.data.user.id,
-          email,
-          full_name: name,
-          role,
-        });
-      }
-
-      return signUpResult;
+    if (existingProfile.data?.id) {
+      userId = existingProfile.data.id;
+    } else {
+      userId = crypto.getRandomValues(new Uint8Array(16))
+        .reduce((acc, byte) => acc + byte.toString(16).padStart(2, '0'), '');
     }
 
-    return signInResult;
+    await supabase.from('user_profiles').upsert({
+      id: userId,
+      email,
+      full_name: name,
+      role,
+    });
+
+    const session: MockSession = {
+      id: userId,
+      name,
+      email,
+      role,
+      createdAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+
+    return { error: null };
   } catch (error) {
     console.error('Login error:', error);
     throw error;
@@ -41,23 +53,32 @@ export const mockLogin = async (name: string, role: UserRole = 'customer') => {
 };
 
 export const logout = async () => {
-  await supabase.auth.signOut();
+  localStorage.removeItem(STORAGE_KEY);
 };
 
-export const getCurrentUser = async () => {
-  const { data } = await supabase.auth.getSession();
-  return data.session?.user || null;
+export const getCurrentSession = () => {
+  const session = localStorage.getItem(STORAGE_KEY);
+  return session ? JSON.parse(session) as MockSession : null;
+};
+
+export const getCurrentUser = () => {
+  const session = getCurrentSession();
+  return session ? { id: session.id, email: session.email } : null;
 };
 
 export const getCurrentUserProfile = async () => {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const session = getCurrentSession();
+  if (!session) return null;
 
   const { data } = await supabase
     .from('user_profiles')
     .select('*')
-    .eq('id', user.id)
+    .eq('id', session.id)
     .maybeSingle();
 
   return data;
+};
+
+export const isAuthenticated = () => {
+  return !!getCurrentSession();
 };
