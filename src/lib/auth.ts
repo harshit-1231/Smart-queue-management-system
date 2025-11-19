@@ -4,18 +4,24 @@ export const mockLogin = async (name: string, role: UserRole = 'customer') => {
   const email = `${name.toLowerCase().replace(/\s+/g, '.')}@appointments.local`;
 
   try {
-    let result = await supabase.auth.signInWithPassword({
+    const signInResult = await supabase.auth.signInWithPassword({
       email,
       password: 'demo123456',
     });
 
-    if (result.error?.status === 400) {
+    if (signInResult.error) {
       const signUpResult = await supabase.auth.signUp({
         email,
         password: 'demo123456',
+        options: {
+          data: {
+            full_name: name,
+            role,
+          },
+        },
       });
 
-      if (signUpResult.data.user) {
+      if (!signUpResult.error && signUpResult.data.user) {
         await supabase.from('user_profiles').upsert({
           id: signUpResult.data.user.id,
           email,
@@ -27,7 +33,7 @@ export const mockLogin = async (name: string, role: UserRole = 'customer') => {
       return signUpResult;
     }
 
-    return result;
+    return signInResult;
   } catch (error) {
     console.error('Login error:', error);
     throw error;

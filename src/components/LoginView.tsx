@@ -19,11 +19,14 @@ export default function LoginView() {
     setError('');
 
     try {
-      await mockLogin(name, role);
+      const result = await mockLogin(name, role);
+      if (result.error) {
+        setError(result.error.message || 'Login failed. Please try again.');
+        setIsLoading(false);
+      }
     } catch (err) {
       setError('Login failed. Please try again.');
       console.error(err);
-    } finally {
       setIsLoading(false);
     }
   };

@@ -10,18 +10,44 @@ export default function MainLayout() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session?.user) {
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', data.session.user.id)
-          .maybeSingle();
-        setUserProfile(profile);
+    let isMounted = true;
+
+    const loadProfile = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (isMounted && data.session?.user) {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', data.session.user.id)
+            .maybeSingle();
+          if (isMounted) {
+            setUserProfile(profile);
+          }
+        }
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
-      setIsLoading(false);
-    })();
+    };
+
+    loadProfile();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async () => {
+      if (isMounted) {
+        await loadProfile();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
   }, []);
 
   const handleLogout = async () => {
